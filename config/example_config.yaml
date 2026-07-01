@@ -1,0 +1,15 @@
+# Example config.yaml snippet for mempalace-light plugin
+# Add these sections to your existing /root/.hermes/config.yaml
+
+memory:
+  provider: mempalace-light
+
+mcp_servers:
+  mempalace:
+    type: http
+    url: http://192.168.0.118:8765/mcp
+    timeout: 10
+    headers:
+      Authorization: Bearer ${MCP_MEMPALACE_API_KEY}
+    # IMPORTANT: Use 'headers:', NOT 'token:'
+    # 'token:' is silently ignored by the runtime

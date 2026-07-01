@@ -1,0 +1,5 @@
+name: mempalace-light
+description: MemPalace — lean read-only memory provider. Reminder + prefetch only. Uses the same palace as the full mempalace plugin. MCP handles writes.
+version: "1.0"
+requires:
+  - mempalace>=3.0
