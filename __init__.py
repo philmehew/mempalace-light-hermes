@@ -24,11 +24,93 @@ from dataclasses import dataclass
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from collections import defaultdict
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Routing Configuration
+# ---------------------------------------------------------------------------
+
+_ROUTING_CONFIG_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "routing_config.yaml"
+)
+_routing_config = None
+_routing_config_mtime = 0
+
+
+def _load_routing_config() -> dict:
+    """Load routing_config.yaml, re-reading if the file changed."""
+    global _routing_config, _routing_config_mtime
+    if yaml is None:
+        logger.warning("yaml module not available — routing disabled")
+        return None
+    try:
+        mtime = os.path.getmtime(_ROUTING_CONFIG_PATH)
+        if _routing_config is not None and mtime == _routing_config_mtime:
+            return _routing_config
+        with open(_ROUTING_CONFIG_PATH) as f:
+            _routing_config = yaml.safe_load(f)
+        _routing_config_mtime = mtime
+        logger.info("routing_config.yaml loaded/reloaded")
+        return _routing_config
+    except FileNotFoundError:
+        logger.warning("routing_config.yaml not found — using defaults")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to load routing_config.yaml: {e}")
+        return None
+
+
+def route(text: str) -> Tuple[str, str]:
+    """
+    Route conversation text to a (wing, room) pair using keyword matching.
+    Falls back to ("wing_gay-mike", "general") on no match.
+    """
+    config = _load_routing_config()
+    if config is None:
+        return "wing_gay-mike", "general"
+
+    default_wing = config.get("default_wing", "wing_gay-mike")
+    default_room = config.get("default_room", "general")
+    text_lower = text.lower()[:2000]
+
+    # Score wings — include room keywords as wing-level signal too
+    wing_scores = defaultdict(int)
+    for wing_name, wing_def in config.get("wings", {}).items():
+        for kw in wing_def.get("keywords", []):
+            wing_scores[wing_name] += text_lower.count(kw.lower())
+        for room_def in wing_def.get("rooms", {}).values():
+            for kw in room_def.get("keywords", []):
+                wing_scores[wing_name] += text_lower.count(kw.lower())
+
+    if not wing_scores or max(wing_scores.values()) == 0:
+        return default_wing, default_room
+
+    best_wing = max(wing_scores, key=wing_scores.get)
+
+    # Score rooms within the best wing
+    wing_def = config.get("wings", {}).get(best_wing, {})
+    room_scores = defaultdict(int)
+    for room_name, room_def in wing_def.get("rooms", {}).items():
+        room_kw = room_def.get("keywords", []) + [room_name]
+        for kw in room_kw:
+            room_scores[room_name] += text_lower.count(kw.lower())
+
+    if not room_scores or max(room_scores.values()) == 0:
+        return best_wing, "general"
+
+    best_room = max(room_scores, key=room_scores.get)
+    return best_wing, best_room
+
 
 # ---------------------------------------------------------------------------
 # MCP JSON-RPC Client
@@ -305,6 +387,11 @@ class MemPalaceLightProvider:
                         text = match.get("text", "")
                         wing = match.get("wing", "")
                         room = match.get("room", "")
+                        created = match.get("created_at", "")
+                        if created:
+                            ts = created[:19]  # ISO format: 2026-07-03T18:11:51
+                        else:
+                            ts = "?"
                         if "## Turn" in text:
                             lines = text.split("\n")
                             relevant = []
@@ -314,7 +401,7 @@ class MemPalaceLightProvider:
                                     relevant.append(line)
                             if relevant:
                                 snippet = "\n".join(relevant[:4])
-                                palace_lines.append(f"PALACE_MATCH [{wing}/{room}]: {snippet}")
+                                palace_lines.append(f"PALACE_MATCH [{wing}/{room} @ {ts}]: {snippet}")
                     if palace_lines:
                         blocks.append("--- Palace Context ---\n" + "\n".join(palace_lines))
             except Exception as e:
@@ -361,8 +448,12 @@ class MemPalaceLightProvider:
         # Build the turn content
         turn_text = f"USER: {user_content}\nASSISTANT: {assistant_content}"
         
+        # Route to the right wing/room based on content
+        combined = f"{user_content} {assistant_content}"
+        wing, room = route(combined)
+        
         # Check for duplicates before writing
-        if _check_duplicate(self._mcp, turn_text, "wing_gay-mike", "compressed-context"):
+        if _check_duplicate(self._mcp, turn_text, wing, room):
             logger.info("sync_turn: duplicate detected, skipping")
             return
         
@@ -372,8 +463,8 @@ class MemPalaceLightProvider:
             {
                 "items": [
                     {
-                        "wing": "wing_gay-mike",
-                        "room": "compressed-context",
+                        "wing": wing,
+                        "room": room,
                         "content": turn_text,
                     }
                 ],
@@ -383,7 +474,7 @@ class MemPalaceLightProvider:
         if "error" in result:
             logger.error(f"sync_turn failed: {result['error']}")
         else:
-            logger.info("sync_turn: filed via MCP to wing_gay-mike/compressed-context")
+            logger.info(f"sync_turn: filed via MCP to {wing}/{room}")
     
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """
