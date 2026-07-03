@@ -1,0 +1,166 @@
+# MemPalace Light — Routing Configuration
+#
+# The plugin's sync_turn reads this file to decide which wing/room
+# to file each conversation exchange into. Keyword matching is used:
+# the wing/room with the most keyword hits in the conversation text wins.
+# Unmatched content goes to the general room — that's the improvement signal
+# the cron job reviews to identify routing gaps.
+#
+# Hierarchy: wing (broad domain) → room (topic within domain)
+# The general room in each wing catches anything that matched the wing
+# but not a specific room. The top-level general wing catches everything else.
+
+default_wing: general
+default_room: general
+
+wings:
+  # --- Infrastructure: servers, networking, models, services ---
+  infrastructure:
+    keywords:
+      - ssh
+      - port
+      - service
+      - systemd
+      - config
+      - network
+      - host
+      - docker
+      - container
+      - proxmox
+      - lxc
+      - nginx
+      - firewall
+      - dns
+      - ssl
+      - certificate
+    rooms:
+      strix-halo:
+        keywords:
+          - strix
+          - ryzen
+          - radeon
+          - vulkan
+          - llama-server
+          - gguf
+          - model
+          - inference
+          - gpu
+          - ngl
+          - mmproj
+          - podman
+      hermes:
+        keywords:
+          - hermes
+          - gateway
+          - plugin
+          - mempalace
+          - mcp
+          - skill
+          - agent
+          - config.yaml
+          - .env
+          - cron
+      mempalace:
+        keywords:
+          - mempalace
+          - palace
+          - drawer
+          - wing
+          - room
+          - mining
+          - chromadb
+          - apricity
+          - checkpoint
+          - diary
+          - aaaak
+
+  # --- Home: house, repairs, daily life ---
+  home:
+    keywords:
+      - house
+      - repair
+      - fix
+      - plumbing
+      - electrical
+      - kitchen
+      - bathroom
+      - toilet
+      - valve
+      - boiler
+      - heating
+      - radiator
+      - diy
+      - garden
+      - lawn
+      - fence
+    rooms:
+      maintenance:
+        keywords:
+          - fix
+          - repair
+          - replace
+          - leak
+          - broken
+          - valve
+          - seal
+          - pipe
+          - wiring
+
+  # --- Vehicles ---
+  vehicles:
+    keywords:
+      - car
+      - bike
+      - motorbike
+      - honda
+      - vfr
+      - tyre
+      - oil
+      - mot
+      - service
+      - battery
+      - exhaust
+      - mot
+    rooms:
+      motorbike:
+        keywords:
+          - vfr
+          - motorbike
+          - honda
+          - helmet
+          - chain
+          - sprocket
+
+  # --- Projects: specific builds, code, development ---
+  projects:
+    keywords:
+      - project
+      - build
+      - deploy
+      - github
+      - git
+      - commit
+      - repo
+      - code
+      - python
+      - script
+      - api
+      - discord
+      - iracing
+      - spotter
+    rooms:
+      iracing:
+        keywords:
+          - iracing
+          - spotter
+          - racing
+          - telemetry
+          - setup
+          - lap
+
+  # --- General: the improvement signal bucket ---
+  general:
+    keywords: []
+    rooms:
+      general:
+        keywords: []

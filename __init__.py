@@ -263,39 +263,71 @@ class MemPalaceLightProvider:
     # -----------------------------------------------------------------------
     
     def prefetch(self, query: str, *, session_id: str = "") -> str:
-        """Load recent diary entries for prompt injection."""
+        """Load recent diary entries AND search palace for relevant context."""
         if not self.is_available():
             return ""
-        
+
+        blocks = []
+
+        # --- 1. Diary entries (session summaries) ---
         try:
-            # Read last 5 diary entries from the gay-mike agent
             result = self._mcp.call(
                 "mempalace_diary_read",
                 {"agent_name": "gay-mike", "last_n": 5},
             )
-            
-            if "error" in result:
-                logger.warning(f"prefetch diary_read error: {result['error']}")
-                return ""
-            
-            entries = result.get("entries", [])
-            if not entries:
-                return ""
-            
-            # Format entries for prompt injection
-            lines = []
-            for entry in entries[:3]:  # Limit to 3 most recent
-                entry_text = entry.get("content", "")  # Diary API returns 'content', not 'entry'
-                if entry_text:
-                    lines.append(f"RECENT_MEMORY: {entry_text[:500]}")
-            
-            if lines:
-                return "\n".join(lines) + "\n"
-            return ""
-            
+            if "error" not in result:
+                entries = result.get("entries", [])
+                lines = []
+                for entry in entries[:3]:
+                    entry_text = entry.get("content", "")
+                    if entry_text:
+                        lines.append(f"RECENT_MEMORY: {entry_text[:500]}")
+                if lines:
+                    blocks.append("--- Recent Memories ---\n" + "\n".join(lines))
         except Exception as e:
-            logger.error(f"prefetch failed: {e}")
-            return ""
+            logger.error(f"prefetch diary_read error: {e}")
+
+        # --- 2. Semantic search (palace context) ---
+        if len(query) >= 5:
+            try:
+                search_result = self._mcp.call(
+                    "mempalace_search",
+                    {
+                        "query": query[:250],
+                        "limit": 3,
+                        "max_distance": 1.2,
+                    },
+                )
+                if "error" not in search_result:
+                    matches = search_result.get("results", [])
+                    palace_lines = []
+                    for match in matches[:3]:
+                        text = match.get("text", "")
+                        wing = match.get("wing", "")
+                        room = match.get("room", "")
+                        if "## Turn" in text:
+                            lines = text.split("\n")
+                            relevant = []
+                            for line in lines:
+                                l = line.lower()
+                                if any(kw in l for kw in ["model", "port", "qwen", "phi", "gemma", "ministral", "strix", "800"]):
+                                    relevant.append(line)
+                            if relevant:
+                                snippet = "\n".join(relevant[:4])
+                                palace_lines.append(f"PALACE_MATCH [{wing}/{room}]: {snippet}")
+                    if palace_lines:
+                        blocks.append("--- Palace Context ---\n" + "\n".join(palace_lines))
+            except Exception as e:
+                logger.error(f"prefetch search error: {e}")
+
+        if blocks:
+            result = "\n".join(blocks) + "\n"
+            total = len(result)
+            if total > 2000:
+                result = result[:2000] + "\n... (truncated)"
+            logger.info(f"prefetch: {len(blocks)} block(s), {len(result)} chars")
+            return result
+        return ""
     
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
         """Queue a background recall for the NEXT turn."""
@@ -331,7 +363,7 @@ class MemPalaceLightProvider:
         
         # Check for duplicates before writing
         if _check_duplicate(self._mcp, turn_text, "wing_gay-mike", "compressed-context"):
-            logger.debug("sync_turn: duplicate detected, skipping")
+            logger.info("sync_turn: duplicate detected, skipping")
             return
         
         # File as a drawer checkpoint (no diary this time)
@@ -351,7 +383,7 @@ class MemPalaceLightProvider:
         if "error" in result:
             logger.error(f"sync_turn failed: {result['error']}")
         else:
-            logger.debug(f"sync_turn: filed {len(turn_text)} chars")
+            logger.info("sync_turn: filed via MCP to wing_gay-mike/compressed-context")
     
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """
