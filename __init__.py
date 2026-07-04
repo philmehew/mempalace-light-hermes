@@ -429,52 +429,11 @@ class MemPalaceLightProvider:
         messages: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """
-        Record conversation exchange to MemPalace.
-        Fires after every assistant response.
+        DISABLED: Per-turn conversation filing is replaced by a daily
+        scavenger cron that reads session history and extracts only
+        decisions, configs, and facts into MemPalace.
         """
-        if not self.is_available():
-            return
-        
-        # Coalesce rapid sync calls
-        now = time.time()
-        if now - self._last_sync < self._sync_interval:
-            return
-        self._last_sync = now
-        
-        # Use the provided session_id if different from ours
-        if session_id:
-            self._session_id = session_id
-        
-        # Build the turn content
-        turn_text = f"USER: {user_content}\nASSISTANT: {assistant_content}"
-        
-        # Route to the right wing/room based on content
-        combined = f"{user_content} {assistant_content}"
-        wing, room = route(combined)
-        
-        # Check for duplicates before writing
-        if _check_duplicate(self._mcp, turn_text, wing, room):
-            logger.info("sync_turn: duplicate detected, skipping")
-            return
-        
-        # File as a drawer checkpoint (no diary this time)
-        result = self._mcp.call(
-            "mempalace_checkpoint",
-            {
-                "items": [
-                    {
-                        "wing": wing,
-                        "room": room,
-                        "content": turn_text,
-                    }
-                ],
-            },
-        )
-        
-        if "error" in result:
-            logger.error(f"sync_turn failed: {result['error']}")
-        else:
-            logger.info(f"sync_turn: filed via MCP to {wing}/{room}")
+        return
     
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """

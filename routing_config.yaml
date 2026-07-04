@@ -1,10 +1,12 @@
-# MemPalace Light — Routing Configuration
+# MemPalace Light — Routing Configuration (DISABLED for sync_turn)
 #
-# The plugin's sync_turn reads this file to decide which wing/room
-# to file each conversation exchange into. Keyword matching is used:
-# the wing/room with the most keyword hits in the conversation text wins.
-# Unmatched content goes to the general room — that's the improvement signal
-# the cron job reviews to identify routing gaps.
+# NOTE: sync_turn (per-turn filing) has been disabled as of July 2026.
+# Conversation exchanges are no longer filed to MemPalace turn-by-turn.
+# Instead, a daily scavenger cron reads session history and extracts
+# only decisions/configs/facts to the palace.
+#
+# This routing config is retained as documentation for valid wing/room
+# targets that the scavenger cron can use.
 #
 # Hierarchy: wing (broad domain) → room (topic within domain)
 # The general room in each wing catches anything that matched the wing
