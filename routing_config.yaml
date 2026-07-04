@@ -2,12 +2,17 @@
 #
 # NOTE: sync_turn (per-turn filing) has been disabled as of July 2026.
 # Conversation exchanges are no longer filed to MemPalace turn-by-turn.
-# Instead, a nightly no_agent cron script reads session history, extracts
-# facts using the patterns defined below, and files them to the palace.
+#
+# Instead:
+#   No_agent cron (00:30 daily) reads session DB, extracts facts using
+#   the patterns defined below, and files to palace + KG.
+#   LLM cron (Mon 08:00 weekly) reviews the general bucket and extraction
+#   output, then patches this YAML when patterns need updating.
 #
 # Two sections:
 #   extraction:   Patterns for auto-extracting facts from conversations.
-#                 Edit this to improve fact detection over time.
+#                 Edit this directly, or let the weekly LLM review suggest
+#                 additions based on what it sees in the palace.
 #   wings/rooms:  Routing targets for filed content. Used by the script
 #                 to determine which wing/room each fact belongs to.
 #
