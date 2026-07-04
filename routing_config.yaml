@@ -2,11 +2,13 @@
 #
 # NOTE: sync_turn (per-turn filing) has been disabled as of July 2026.
 # Conversation exchanges are no longer filed to MemPalace turn-by-turn.
-# Instead, a daily scavenger cron reads session history and extracts
-# only decisions/configs/facts to the palace.
+# Instead, a nightly maintenance cron (mempalace-scavenger, 00:30) reads
+# session history for facts/decisions AND reviews the general bucket for
+# content that didn't match routing keywords. Both tasks run in one pass.
 #
 # This routing config is retained as documentation for valid wing/room
-# targets that the scavenger cron can use.
+# targets that the maintenance cron uses, and may be updated by the cron
+# when it finds recurring topics in the general bucket that need keywords.
 #
 # Hierarchy: wing (broad domain) → room (topic within domain)
 # The general room in each wing catches anything that matched the wing
