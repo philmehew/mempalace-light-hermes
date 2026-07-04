@@ -1,21 +1,137 @@
-# MemPalace Light — Routing Configuration (DISABLED for sync_turn)
+# MemPalace Light — Configuration
 #
 # NOTE: sync_turn (per-turn filing) has been disabled as of July 2026.
 # Conversation exchanges are no longer filed to MemPalace turn-by-turn.
-# Instead, a nightly maintenance cron (mempalace-scavenger, 00:30) reads
-# session history for facts/decisions AND reviews the general bucket for
-# content that didn't match routing keywords. Both tasks run in one pass.
+# Instead, a nightly no_agent cron script reads session history, extracts
+# facts using the patterns defined below, and files them to the palace.
 #
-# This routing config is retained as documentation for valid wing/room
-# targets that the maintenance cron uses, and may be updated by the cron
-# when it finds recurring topics in the general bucket that need keywords.
+# Two sections:
+#   extraction:   Patterns for auto-extracting facts from conversations.
+#                 Edit this to improve fact detection over time.
+#   wings/rooms:  Routing targets for filed content. Used by the script
+#                 to determine which wing/room each fact belongs to.
 #
-# Hierarchy: wing (broad domain) → room (topic within domain)
-# The general room in each wing catches anything that matched the wing
-# but not a specific room. The top-level general wing catches everything else.
+# Extraction patterns use regex. To add a new fact type, add an entry
+# under extraction. To add a new target wing/room, add it under wings.
 
-default_wing: general
-default_room: general
+# --- Extraction Patterns ---
+# Each entry defines one fact type. Fields:
+#   type:       Label for the fact (appears in drawer content + KG triple type)
+#   pattern:    Regex with capture group. The capture group is the extracted value.
+#   model_names: Alternative to pattern for fixed name lists (e.g. model names).
+#                The script checks if any name appears in conversation text.
+#   confidence: "high" or "medium". High facts are always filed; medium facts
+#               require additional context keyword match.
+#   entity:     When set, the script always links to this KG subject with the
+#               given predicate.
+#     subject:   KG entity name (e.g. Strix_Halo)
+#     predicate: Relationship type (e.g. runs_model, has_ip)
+#   entity_rules: Context-dependent entity mapping. The first rule whose
+#                 context pattern matches around the fact wins.
+#     - context:     Regex tested against surrounding text
+#       subject:     KG entity name to link
+#       predicate:   Relationship type
+#   route:      Override wing/room for this fact type. Omit to use
+#               default routing (infrastructure/hermes).
+
+extraction:
+  - type: ip_address
+    pattern: '\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b'
+    confidence: high
+    entity_rules:
+      - context: strix|ryzen|radeon|vulkan|llama-server|gguf
+        wing: infrastructure
+        room: strix-halo
+        subject: Strix_Halo
+        predicate: has_ip
+      - context: mempalace|palace|chromadb|apricity
+        wing: infrastructure
+        room: mempalace
+        subject: MemPalace_LXC
+        predicate: has_ip
+      - context: hermes|gateway|mcp
+        wing: infrastructure
+        room: hermes
+        subject: Hermes
+        predicate: has_ip
+
+  - type: port
+    pattern: '(?:port\s+|\s)(\d{4,5})\b'
+    confidence: high
+    entity_rules:
+      - context: strix|llama|model|gpu
+        wing: infrastructure
+        room: strix-halo
+        subject: Strix
+        predicate: runs_on_port
+      - context: hermes|gateway|mcp
+        wing: infrastructure
+        room: hermes
+        subject: Hermes
+        predicate: runs_on_port
+
+  - type: model
+    names:
+      - qwen
+      - ministral
+      - phi
+      - gemma
+      - ornith
+      - deepseek
+      - llama
+      - mistral
+      - claude
+      - gpt
+      - glm
+      - mixtral
+      - qwen3
+    confidence: medium
+    entity:
+      subject: Strix_Halo
+      predicate: runs_model
+    route:
+      wing: infrastructure
+      room: strix-halo
+
+  - type: config_change
+    pattern: '(chang(?:ed|ing)\s+(\w+(?:\s+\w+)?)\s+to\s+(\w[\w./-]*))'
+    confidence: medium
+    route:
+      wing: infrastructure
+      room: hermes
+
+  - type: config_switch
+    pattern: '(switch(?:ed|ing)\s+(?:to|from)\s+(\w[\w./-]*))'
+    confidence: medium
+    route:
+      wing: infrastructure
+      room: hermes
+
+  - type: config_set
+    pattern: '(set\s+(\w+(?:\s+\w+)?)\s+to\s+(\w[\w./-]*))'
+    confidence: medium
+    route:
+      wing: infrastructure
+      room: hermes
+
+  - type: git_activity
+    pattern: '(pushe?d?\s+(?:to|on)\s+\w[\w/.-]*|committed?\s+\w[\w/.-]*|merg(?:ed|ing)\s+\w[\w/.-]*)'
+    confidence: medium
+    route:
+      wing: projects
+      room: general
+
+  - type: url
+    pattern: '(https?://[^\s)\]]+)'
+    confidence: medium
+    route:
+      wing: infrastructure
+      room: hermes
+
+# --- Wing/Room Routing Targets ---
+# Used to route filed content. The script matches facts against wing keywords
+# to determine destination. The general room in each wing catches anything
+# that matched the wing but not a specific room.
 
 wings:
   # --- Infrastructure: servers, networking, models, services ---
