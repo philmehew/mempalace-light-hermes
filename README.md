@@ -133,11 +133,19 @@ extraction approach (which produced too many false positives).
 - **Script:** `scripts/mempalace-scavenger.py` — reads session DB, outputs metadata
 - **Agent prompt:** defined in the cron job config (Hermes cronjob system)
 - **Schedule:** daily at 00:30 UTC
-- **Toolsets:** `session_search`, `file`
+- **Toolsets:** `session_search`, `file`, `terminal`
 
 The LLM extracts KG triples and drawers, normalises entity names, deduplicates
-against existing KG, and never extracts passwords or secrets. See
-`cron/cron-jobs.md` for full details.
+against existing KG, and never extracts passwords or secrets.
+
+**Task 2: Routing Config Review** — the LLM also checks whether the
+`routing_config.yaml` wing/room keywords are catching session topics
+correctly. If a recurring topic (3+ mentions) doesn't match any existing
+wing/room, it adds keywords or creates a new room. This means turn-based
+filing improves over time — the palace gets better organised as the
+routing config learns new topics.
+
+See `cron/cron-jobs.md` for full details.
 
 ## Directory Structure
 
