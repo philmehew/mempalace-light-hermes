@@ -124,18 +124,38 @@ Expected output:
 - Check that `entries` list is populated in the response
 - Ensure `content` key is used (not `entry`)
 
+## Scavenger Cron
+
+A daily LLM-driven cron job (00:30 UTC) reviews recent conversation sessions
+and extracts durable facts to MemPalace. Replaced the old regex-based
+extraction approach (which produced too many false positives).
+
+- **Script:** `scripts/mempalace-scavenger.py` — reads session DB, outputs metadata
+- **Agent prompt:** defined in the cron job config (Hermes cronjob system)
+- **Schedule:** daily at 00:30 UTC
+- **Toolsets:** `session_search`, `file`
+
+The LLM extracts KG triples and drawers, normalises entity names, deduplicates
+against existing KG, and never extracts passwords or secrets. See
+`cron/cron-jobs.md` for full details.
+
 ## Directory Structure
 
 ```
 mempalace-light-plugin/
 ├── README.md                          # This file
 ├── plugin.yaml                        # Plugin manifest
-├── __init__.py                        # Main plugin implementation (539 lines)
+├── __init__.py                        # Main plugin implementation
+├── routing_config.yaml                # Wing/room routing keywords (extraction patterns removed)
 ├── config/
 │   └── example_config.yaml            # Example config.yaml snippet
+├── cron/
+│   └── cron-jobs.md                   # Cron job documentation
 ├── docs/
 │   └── architecture.md                # Exhaustive architecture reference
-└── test_mempalace_light.py           # Verification test script
+├── scripts/
+│   └── mempalace-scavenger.py         # Session DB reader for LLM scavenger cron
+└── test_mempalace_light.py            # Verification test script
 ```
 
 ## More Documentation

@@ -1,39 +1,49 @@
 # MemPalace Cron Jobs — Tracked Config
 
-## Job 1: maintenance auto
+## Job 1: scavenger (LLM-driven)
 
 ```yaml
-name: memcalace: maintenance auto
+name: MemPalace Scavenger (LLM-driven)
 schedule: 30 0 * * *       # 00:30 daily
-type: no_agent (script)
-script: scripts/mempalace-maintenance.py
+type: LLM agent + script
+script: scripts/mempalace-scavenger.py
 deliver: origin
+toolsets: [session_search, file]
 ```
 
-Reads session DB directly, runs extraction patterns from `routing_config.yaml`,
-files to palace + KG. Zero LLM cost.
+The script (`mempalace-scavenger.py`) reads the Hermes session DB and
+outputs metadata for sessions from the last 24h. The LLM agent then:
+
+1. Uses `session_search` to read each session's content
+2. Extracts durable facts (currently true, about running systems)
+3. Files drawers via `mcp_mempalace_checkpoint` for anything worth remembering
+4. Adds KG triples via `mcp_mempalace_kg_add` for structured infrastructure facts
+5. Deduplicates against existing KG entities before adding
+6. Writes a diary checkpoint via `mcp_mempalace_diary_write`
+
+**Key rules:**
+- NO passwords, tokens, or secrets are ever extracted
+- Model names are normalised (no .gguf suffixes, quant tags, or filenames)
+- Only models actually running get `runs_model` triples — not researched/rejected ones
+- Entity names are canonical (Strix_Halo, MemPalace_LXC, Hermes, PVE_host, etc.)
+
+The old regex-based `routing_config.yaml` extraction patterns have been removed.
+Wing/room keyword routing is retained for reference only.
 
 ---
 
-## Job 2: yaml review
+## Removed Jobs
 
-```yaml
-name: memcalace: yaml review
-schedule: 0 8 * * 1         # Monday 08:00 weekly
-type: LLM agent
-deliver: origin
-```
+### yaml review (deleted July 2026)
 
-Two tasks:
-1. **Routing review** — checks `general/general` bucket, files identifiable
-   content to correct wing/room, patches routing keywords
-2. **Extraction review** — reviews drawers since last checkpoint, spots missed
-   patterns, files them immediately as drawers + KG triples, patches YAML
+Was a weekly LLM cron (Mon 08:00) that reviewed routing patterns and
+patched the YAML extraction config. Obsolete now that extraction is
+LLM-driven. Prompt was in `cron/yaml-review-prompt.txt` (also deleted).
 
----
+### maintenance auto (replaced July 2026)
 
-## Prompt: yaml review
-
-See `cron/yaml-review-prompt.txt` for the full prompt (3330 chars).
-
-**Schedule args:** `0 8 * * 1`, deliver to origin, no skills.
+Was a no_agent script (`mempalace-maintenance.py`) that used regex
+patterns to extract facts from session text. Replaced by the
+LLM-driven scavenger above because regex extraction produced too many
+false positives (usernames as models, filenames as models, wrong IP
+attributions, year numbers as ports).
